@@ -26,7 +26,7 @@
 In the example {{digest}} is a bound variable to recieve the generated hash,
 <MESSAGE-TO-HASH> is the text used to generate the hash.
 
-## HMAC Example      
+## HMAC Example
       <secure-hash sha-variant="SHA-512" input-format="TEXT"></secure-hash>
       <secure-hmac enc="TEXT"></secure-hmac>
       <script>
@@ -53,5 +53,7 @@ Then, go ahead and download the element's dependencies:
 
     bower install
 
-secure-hash depends on
+
+## Related
+
 [secure-random](http://github.com/hekahouse/secure-random/)
