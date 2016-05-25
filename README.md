@@ -6,6 +6,9 @@
 
 [Source](http://github.com/hekahouse/secure-hash/)
 
+## Adapted from
+
+[jsSHA](https://github.com/Caligatio/jsSHA)
 
 ## Install
 
@@ -52,5 +55,3 @@ Then, go ahead and download the element's dependencies:
 
 secure-hash depends on
 [secure-random](http://github.com/hekahouse/secure-random/)
-
-## Related
