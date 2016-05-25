@@ -1,0 +1,81 @@
+<link rel="import" href="secure-hash.html">
+
+<!--
+# secure-hmac
+
+
+@group HekaHouse
+@element secure-hmac
+@demo demo/index.html
+-->
+
+<dom-module id="secure-hmac">
+  <template>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+  <secure-hash id="hmac"></secure-hash>
+  </template>
+
+
+</dom-module>
+<script>
+  Polymer({
+    is: 'secure-hmac',
+    properties: {
+      Hash: {
+        type: Object,
+        notify: true
+      },
+      key: {
+        type: String,
+        notify: true
+      },
+      enc: {
+        type: String,
+        notify: true
+      },
+      updateMsg: {
+        type: String,
+        notify: true
+      },
+      updateEnc: {
+        type: String,
+        notify: true
+      },
+      hmacEnc: {
+        type: String,
+        notify: true
+      }
+    },
+    observers: [
+      'Hmac(Hash,key,enc)',
+      'update(updateMsg,updateEnc)',
+      'update(hmacEnc)'],
+    attached: function(){
+
+    },
+    Hmac: function(hash, key, enc) {
+      this.Hash = hash;
+      this._init(key);
+    },
+    _init: function(key) {
+      this.$.hmac._init(this.Hash.shaVariant,
+        this.Hash.inputFormat,
+        this.Hash.inputOptions);
+      this.$.hmac.setHMACKey(key,
+        this.Hash.inputFormat,
+        this.Hash.inputOptions);
+    },
+
+    update: function(updateMsg, updateEnc) {
+      this.$.hmac.update(updateMsg, updateEnc);
+    },
+
+    getHMAC: function(hmacEnc) {
+      return this.$.hmac.getHMAC(hmacEnc);
+    }
+  });
+</script>

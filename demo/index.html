@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+    <title>secure-hash demo</title>
+    <script src="../bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+    <link rel="import" href="../bower_components/secure-random/secure-random.html">
+    <link rel="import" href="../bower_components/paper-input/paper-input.html">
+    <link rel="import" href="../secure-hash-utils.html">
+    <link rel="import" href="../secure-hash.html">
+    <link rel="import" href="../secure-hmac.html">
+
+    <link rel="manifest" href="manifest.json">
+    <style is="custom-style" include="demo-pages-shared-styles">
+      app-header span {
+        margin: 16px;
+      }
+      div.content {
+        margin: 16px;
+      }
+    </style>
+  </head>
+  <body unresolved>
+    <template is="dom-bind">
+      <app-header condenses fixed effects="resize-title blend-background waterfall">
+        <span>loads a secure-hash into firebase.</span>
+      </app-header>
+      <div class="content">
+        <secure-random id="rand" length="16" random-str="{{randomStr}}"></secure-random>
+        <secure-hash id="init" sha-variant="SHA-512" input-format="TEXT"></secure-hash>
+        <secure-hash
+          id="keyed"
+          sha-variant="SHA-512"
+          input-format="TEXT"
+          incoming-msg="{{randomStr}}"
+          outgoing-hash='{{hmacKey}}'></secure-hash>
+
+        <secure-hmac enc="TEXT"></secure-hmac>
+        <paper-input id="random" label="Random array of integers" value="{{randomStr}}"></paper-input>
+        <paper-input id="sha512" label="SHA 512 Hash of random input (key for HMAC)" value="{{hmacKey}}"></paper-input>
+        <paper-input id="hmacMessage" label="HMAC Message" value="{{hmacMessage}}"></paper-input>
+        <paper-input id="hmac" label="SHA 512 HMAC Hash of message"></paper-input>
+        <input type="submit" value="generate HMAC" onclick="calculate()">
+      </div>
+      <script>
+      var hash;
+      document.addEventListener('WebComponentsReady', function() {
+        document.querySelector('paper-input#hmacMessage').value = "This is a test"
+      });
+      function calculate() {
+
+        var sha512 = document.querySelector('paper-input#sha512');
+        var hmacMessage = document.querySelector('paper-input#hmacMessage');
+        var hmacHash = document.querySelector('paper-input#hmac');
+
+        var hmac = document.querySelector('secure-hmac');
+
+        hash = document.querySelector('secure-hash#init');
+
+        hmac.Hash = hash;
+
+        hmac._init(sha512.value);
+        //console.log(keyed.getHash('HEX'));
+
+        hmac.update(hmacMessage.value.replace(/^\s+|\s+$/g, ''));
+
+        hmacHash.value = hmac.getHMAC('HEX');
+
+      }
+
+      </script>
+
+  </template>
+</body>
+
+
+<!-- <!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+    <title>secure-hash demo</title>
+    <script src="../bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+    <link rel="import" href="../bower_components/secure-random/secure-random.html">
+    <link rel="import" href="../bower_components/paper-input/paper-input.html">
+    <link rel="import" href="../secure-hash-utils.html">
+    <link rel="import" href="../secure-hash.html">
+    <link rel="import" href="../secure-hmac.html">
+
+    <link rel="manifest" href="manifest.json">
+    <style is="custom-style" include="demo-pages-shared-styles">
+      app-header span {
+        margin: 16px;
+      }
+    </style>
+  </head>
+  <body unresolved>
+    <template is="dom-bind">
+      <app-header condenses fixed effects="resize-title blend-background waterfall">
+        <span>loads a secure-hash into firebase.</span>
+      </app-header>
+
+      <secure-random length="16" random-str="{{random}}"></secure-random>
+      <secure-hash ></secure-hash>
+
+      <secure-hmac></secure-hmac>
+      <paper-input id="random" label="Random Input" value="{{random}}"></paper-input>
+      <paper-input id="sha512" label="SHA 512 Hash of random input (key for HMAC)"></paper-input>
+      <paper-input id="hmacMessage" label="HMAC Message" value="This is a test."></paper-input>
+      <paper-input id="hmac" label="SHA 512 HMAC Hash of message"></paper-input>
+
+      <script>
+      window.addEventListener('WebComponentsReady', function(e) {
+        var random = document.querySelector('secure-random');
+        var sha512 = document.querySelector('paper-input#sha512');
+        var hmacMessage = document.querySelector('paper-input#hmacMessage');
+        var hmacHash = document.querySelector('paper-input#hmac');
+
+        var hash = document.querySelector('secure-hash');
+        var hmac = document.querySelector('secure-hmac');
+
+
+        hash._init("SHA-512","TEXT",{"encoding":"UTF8"});
+        hash.update(random.randomStr);
+
+        sha512.value = "abc"//hash.getHash('HEX');
+
+        hmac.Hmac(hash, sha512.value,"TEXT");
+
+        hmac.update(hmacMessage.value);
+        hmacHash.value = hmac.getHMAC('HEX');
+      });
+
+      </script>
+
+  </template>
+</body> -->

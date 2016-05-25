@@ -1,0 +1,30 @@
+{
+  "name": "secure-hash",
+  "version": "1.0.1",
+  "authors": [
+    "Aron Price <aron@heka.house>"
+  ],
+  "description": "A polymer element to generate cryptographic hashes.",
+  "keywords": [
+    "web-component",
+    "polymer",
+    "platinum",
+    "firebase",
+    "service-worker"
+  ],
+  "main": "secure-hash.html",
+  "license": "https://heka-house-polymer-demos.firebaseio.com/LICENSE",
+  "homepage": "https://github.com/HekaHouse/secure-hash/",
+  "ignore": [
+    "/.*",
+    "/test/"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.2.0",
+    "secure-random": "HekaHouse/secure-random#^1.0.3"
+  },
+  "devDependencies": {
+    "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
+    "web-component-tester": "^4.0.0"
+  }
+}

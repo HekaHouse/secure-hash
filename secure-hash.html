@@ -1,0 +1,520 @@
+<link rel="import" href="secure-hash-utils.html">
+<!--
+# secure-hash
+
+`<secure-hash>` A Polymer element for generating cryptographic random values.
+
+[API Docs and Demo](https://heka-house-polymer-demos.firebaseapp.com/secure-hash)
+
+[Source](http://github.com/hekahouse/secure-hash/)
+
+
+## Install
+
+    bower install --save HekaHouse/secure-hash
+
+## Example
+
+    <secure-hash
+      length="16"
+      random="{{random}}">
+    </secure-hash>
+
+In the example {{random}} is a bound variable to recieve the random values.
+
+
+## Dependencies
+
+Element dependencies are managed via [Bower](http://bower.io/). You can
+install that via:
+
+    npm install -g bower
+
+Then, go ahead and download the element's dependencies:
+
+    bower install
+
+secure-hash has no dependencies
+
+## Related
+
+@group HekaHouse
+@element secure-hash
+@demo demo/index.html
+-->
+
+<dom-module id="secure-hash">
+  <template>
+  <style>
+    :host {
+      display: block;
+    }
+  </style>
+  <secure-hash-utils id="utils"></secure-hash-utils>
+  </template>
+</dom-module>
+<script>
+
+  Polymer({
+    is: 'secure-hash',
+    properties: {
+      processedLen: {
+        type: Number,
+        value: 0
+      },
+      variantBlockSize: {
+        type: Number,
+        value: 0
+      },
+      outputBinLen: {
+        type: Number,
+        value: 0
+      },
+      hmacStrength: {
+        type: Number,
+        value: 0
+      },
+      remainder: {
+        type: Array,
+        value: []
+      },
+      remainderLen: {
+        type: Number,
+        value: 0
+      },
+      utfType: {
+        type: String
+      },
+      intermediateH: {
+        type: Array,
+        value: []
+      },
+      shaVariant: {
+        type: String,
+        notify: true
+      },
+      hmacKeySet: {
+        type: Boolean,
+        value: false
+      },
+      keyWithIPad: {
+        type: Array,
+        value: []
+      },
+      keyWithOPad: {
+        type: Array,
+        value: []
+      },
+      numRounds: {
+        type: Number
+      },
+      updatedCalled: {
+        type: Boolean,
+        value: false
+      },
+      inputOptions: {
+        type: Object,
+        value: {"encoding":"UTF8"},
+        notify: true
+      },
+      inputFormat: {
+        type: String,
+        notify: true,
+        notify: true
+      },
+      outgoingHash: {
+        type: String,
+        notify: true
+      },
+      incomingMsg: {
+        type: String,
+        notify: true,
+        observer: 'updateBound'
+      }
+    },
+    observers: ['_init(shaVariant, inputFormat, inputOptions)'],
+
+    converterFunc: function(format,utfType,str,existingBin,existingBinLen) {
+      var retVal;
+
+  		/* Validate encoding */
+  		switch (utfType)
+  		{
+  		case "UTF8":
+  			/* Fallthrough */
+  		case "UTF16BE":
+  			/* Fallthrough */
+  		case "UTF16LE":
+  			/* Fallthrough */
+  			break;
+  		default:
+  			throw new Error("encoding must be UTF8, UTF16BE, or UTF16LE");
+  		}
+
+  		/* Map inputFormat to the appropriate converter */
+  		switch (format)
+  		{
+  		case "HEX":
+  			return this.$.utils.hex2binb(str, existingBin, existingBinLen);
+  			break;
+  		case "TEXT":
+  			return this.$.utils.str2binb(str, utfType, existingBin, existingBinLen);
+  			break;
+  		case "B64":
+  			return this.$.utils.b642binb(str, existingBin, existingBinLen);
+  			break;
+  		case "BYTES":
+  			return this.$.utils.bytes2binb(str, existingBin, existingBinLen);
+  			break;
+  		case "ARRAYBUFFER":
+  			try {
+  				retVal = new ArrayBuffer(0);
+  			} catch (err) {
+  				throw new Error("ARRAYBUFFER not supported by this environment");
+  			}
+  			return this.$.utils.arraybuffer2binb(str, existingBin, existingBinLen);
+  			break;
+  		default:
+  			throw new Error("format must be HEX, TEXT, B64, BYTES, or ARRAYBUFFER");
+  		}
+    },
+    roundFunc: function(variant, block, h) {
+      if ("SHA-1" === variant) {
+        return this.$.utils.roundSHA1(block,h);
+      } else  {
+        return this.$.utils.roundSHA2(block,h,variant);
+      }
+    },
+    finalizeFunc: function(variant, remainder, remainderBinLen, processedBinLen, H) {
+      if ("SHA-1" === variant) {
+        return this.$.utils.finalizeSHA1(remainder, remainderBinLen, processedBinLen, H);
+      } else  {
+        return this.$.utils.finalizeSHA2(remainder, remainderBinLen, processedBinLen, H, variant);
+      }
+    },
+
+    /*
+    * @param {string} variant The desired SHA variant (SHA-1, SHA-224, SHA-256,
+    *   SHA-384, or SHA-512)
+    * @param {string} inputFormat The format of srcString: HEX, TEXT, B64,
+    *   BYTES, or ARRAYBUFFER
+    * @param {{encoding: (string|undefined), numRounds: (number|undefined)}=}
+    *   options Optional values
+    */
+    _init: function(shaVariant, inputFormat, inputOptions) {
+      this.shaVariant = shaVariant;
+      this.inputFormat = inputFormat;
+      this.inputOptions = inputOptions || {};
+  		this.utfType = this.inputOptions["encoding"] || "UTF8";
+  		this.numRounds = this.inputOptions["numRounds"] || 1;
+      this.keyWithIPad = [];
+      this.keyWithOPad = [];
+      this.intermediateH = [];
+      this.processedLen = 0;
+      this.remainderLen = 0;
+      this.remainder =[];
+
+      this.$.utils._init();
+
+  		if ((this.numRounds !== parseInt(this.numRounds, 10)) || (1 > this.numRounds))
+  		{
+  			throw new Error("numRounds must a integer >= 1");
+  		}
+
+  		if (("SHA-1" === this.shaVariant))
+  		{
+  			this.variantBlockSize = 512;
+  			this.outputBinLen = 160;
+        this.hmacStrength = 80;
+  		}
+  		else
+  		{
+  			if (("SHA-224" === this.shaVariant))
+  			{
+  				this.variantBlockSize = 512;
+  				this.outputBinLen = 224;
+          this.hmacStrength = 192;
+  			}
+  			else if (("SHA-256" === this.shaVariant))
+  			{
+  				this.variantBlockSize = 512;
+  				this.outputBinLen = 256;
+          this.hmacStrength = 192;
+  			}
+  			else if (("SHA-384" === this.shaVariant))
+  			{
+  				this.variantBlockSize = 1024;
+  				this.outputBinLen = 384;
+  			}
+  			else if (("SHA-512" === this.shaVariant))
+  			{
+  				this.variantBlockSize = 1024;
+  				this.outputBinLen = 512;
+          this.hmacStrength = 192;
+  			}
+  			else
+  			{
+  				throw new Error("Chosen SHA variant is not supported");
+  			}
+  		}
+      this.intermediateH = this.$.utils.getH(this.shaVariant);
+      this.hmacKeySet = false;
+      this.updatedCalled = false;
+    },
+    /**
+		 * Sets the HMAC key for an eventual getHMAC call.  Must be called
+		 * immediately after jsSHA object instantiation
+		 *
+		 * @expose
+		 * @param {string} key The key used to calculate the HMAC
+		 * @param {string} inputFormat The format of key, HEX, TEXT, B64, BYTES,
+		 *   or ARRAYBUFFER
+		 * @param {{encoding : (string|undefined)}=} options Associative array
+		 *   of input format options
+		 */
+		setHMACKey: function(key, inputFormat, options)	{
+			var convertRet, keyBinLen, keyToUse, blockByteSize,
+				i, lastArrayIndex, keyOptions;
+
+			if (true === this.hmacKeySet)
+			{
+        this._init(shaVariant, inputFormat, inputOptions);
+				//throw new Error("HMAC key already set");
+			}
+
+
+			if (true === this.updatedCalled)
+			{
+        this._init(shaVariant, inputFormat, inputOptions);
+				//throw new Error("Cannot set HMAC key after calling update");
+			}
+
+			keyOptions = options || {};
+			utfType = keyOptions["encoding"] || "UTF8";
+
+
+
+			convertRet = this.converterFunc(inputFormat, utfType, key);
+			keyBinLen = convertRet["binLen"];
+			keyToUse = convertRet["value"];
+
+			blockByteSize = this.variantBlockSize >>> 3;
+
+			/* These are used multiple times, calculate and store them */
+			lastArrayIndex = (blockByteSize / 4) - 1;
+
+			/* Figure out what to do with the key based on its size relative to
+			 * the hash's block size */
+			if (blockByteSize < (keyBinLen / 8))
+			{
+				keyToUse = this.finalizeFunc(this.shaVariant, keyToUse, keyBinLen, 0, this.$.utils.getH(this.shaVariant));
+				/* For all variants, the block size is bigger than the output
+				 * size so there will never be a useful byte at the end of the
+				 * string */
+				while (keyToUse.length <= lastArrayIndex)
+				{
+					keyToUse.push(0);
+				}
+				keyToUse[lastArrayIndex] &= 0xFFFFFF00;
+			}
+			else if (blockByteSize > (keyBinLen / 8))
+			{
+				/* If the blockByteSize is greater than the key length, there
+				 * will always be at LEAST one "useless" byte at the end of the
+				 * string */
+				while (keyToUse.length <= lastArrayIndex)
+				{
+					keyToUse.push(0);
+				}
+				keyToUse[lastArrayIndex] &= 0xFFFFFF00;
+			}
+
+			/* Create ipad and opad */
+			for (i = 0; i <= lastArrayIndex; i += 1)
+			{
+				this.keyWithIPad[i] = keyToUse[i] ^ 0x36363636;
+				this.keyWithOPad[i] = keyToUse[i] ^ 0x5C5C5C5C;
+			}
+
+			this.intermediateH = this.roundFunc(this.shaVariant, this.keyWithIPad, this.intermediateH);
+			this.processedLen = this.variantBlockSize;
+
+			this.hmacKeySet = true;
+		},
+    /**
+  	 * Takes incomingMsg and hashes as many blocks as possible.  Stores the
+  	 * rest for either a future update or getHash call.
+  	 *
+  	 * @expose
+  	 * @param {string} incomingMsg The string to be hashed
+  	 */
+  	updateBound: function(incomingMsg){
+      if (this.shaVariant && this.inputFormat && this.inputOptions) {
+        this.update(incomingMsg);
+        this.outgoingHash = this.getHash('HEX');
+      }
+    },
+    /**
+  	 * Takes strString and hashes as many blocks as possible.  Stores the
+  	 * rest for either a future update or getHash call.
+  	 *
+  	 * @expose
+  	 * @param {string} srcString The string to be hashed
+  	 */
+  	update: function(srcString){
+  		var convertRet, chunkBinLen, chunkIntLen, chunk, i, updateProcessedLen = 0,
+  			variantBlockIntInc = this.variantBlockSize >>> 5;
+
+  		convertRet = this.converterFunc(this.inputFormat, this.utfType, srcString, this.remainder, this.remainderLen);
+  		chunkBinLen = convertRet["binLen"];
+  		chunk = convertRet["value"];
+
+  		chunkIntLen = chunkBinLen >>> 5;
+  		for (i = 0; i < chunkIntLen; i += variantBlockIntInc)
+  		{
+  			if (updateProcessedLen + this.variantBlockSize <= chunkBinLen)
+  			{
+  				this.intermediateH = this.roundFunc(
+            this.shaVariant,
+  					chunk.slice(i, i + variantBlockIntInc),
+  					this.intermediateH
+  				);
+  				updateProcessedLen += this.variantBlockSize;
+  			}
+  		}
+  		this.processedLen += updateProcessedLen;
+  		this.remainder = chunk.slice(updateProcessedLen >>> 5);
+  		this.remainderLen = chunkBinLen % this.variantBlockSize;
+  		this.updatedCalled = true;
+  	},
+    /**
+		 * Returns the desired SHA hash of the string specified at instantiation
+		 * using the specified parameters
+		 *
+		 * @expose
+		 * @param {string} format The desired output formatting (B64, HEX,
+		 *   BYTES, or ARRAYBUFFER)
+		 * @param {{outputUpper : (boolean|undefined), b64Pad : (string|undefined)}=}
+		 *   options Hash list of output formatting options
+		 * @return {string|ArrayBuffer} The string representation of the hash
+		 *   in the format specified.
+		 */
+		getHash: function(format, options){
+			var formatFunc, i, outputOptions, finalizedH;
+
+			if (true === this.hmacKeySet)
+			{
+				throw new Error("Cannot call getHash after setting HMAC key");
+			}
+
+			outputOptions = this.$.utils.getOutputOpts(options);
+
+			/* Validate the output format selection */
+			switch (format)
+			{
+			case "HEX":
+				formatFunc = function(binarray) {return this.$.utils.binb2hex(binarray, outputOptions);}.bind(this);
+				break;
+			case "B64":
+				formatFunc = function(binarray) {return this.$.utils.binb2b64(binarray, outputOptions);}.bind(this);
+				break;
+			case "BYTES":
+				formatFunc = binb2bytes;
+				break;
+			case "ARRAYBUFFER":
+				try {
+					i = new ArrayBuffer(0);
+				} catch (err) {
+					throw new Error("ARRAYBUFFER not supported by this environment");
+				}
+				formatFunc = binb2arraybuffer;
+				break;
+			default:
+				throw new Error("format must be HEX, B64, BYTES, or ARRAYBUFFER");
+			}
+
+			finalizedH = this.finalizeFunc(this.shaVariant, this.remainder.slice(), this.remainderLen, this.processedLen, this.intermediateH.slice());
+			for (i = 1; i < this.numRounds; i += 1)
+			{
+				finalizedH = this.finalizeFunc(this.shaVariant, finalizedH, this.outputBinLen, 0, this.$.utils.getH(this.shaVariant));
+			}
+
+			return formatFunc(finalizedH);
+		},
+
+    /**
+		 * Returns the the HMAC in the specified format using the key given by
+		 * a previous setHMACKey call.
+		 *
+		 * @expose
+		 * @param {string} format The desired output formatting
+		 *   (B64, HEX, BYTES, or ARRAYBUFFER)
+		 * @param {{outputUpper : (boolean|undefined), b64Pad : (string|undefined)}=}
+		 *   options associative array of output formatting options
+		 * @return {string|ArrayBuffer} The string representation of the hash in the
+		 *   format specified.
+		 */
+		getHMAC: function(format, options)
+		{
+			var formatFunc,	firstHash, outputOptions, finalizedH;
+
+			if (false === this.hmacKeySet)
+			{
+				throw new Error("Cannot call getHMAC without first setting HMAC key");
+			}
+
+			outputOptions = this.$.utils.getOutputOpts(options);
+
+			/* Validate the output format selection */
+			switch (format)
+			{
+			case "HEX":
+				formatFunc = function(binarray) {return this.$.utils.binb2hex(binarray, outputOptions);}.bind(this);
+				break;
+			case "B64":
+				formatFunc = function(binarray) {return this.$.utils.binb2b64(binarray, outputOptions);}.bind(this);
+				break;
+			case "BYTES":
+				formatFunc = binb2bytes;
+				break;
+			case "ARRAYBUFFER":
+				try {
+					formatFunc = new ArrayBuffer(0);
+				} catch (err) {
+					throw new Error("ARRAYBUFFER not supported by this environment");
+				}
+				formatFunc = binb2arraybuffer;
+				break;
+			default:
+				throw new Error("outputFormat must be HEX, B64, BYTES, or ARRAYBUFFER");
+			}
+
+			firstHash = this.finalizeFunc(this.shaVariant, this.remainder.slice(), this.remainderLen, this.processedLen, this.intermediateH.slice());
+			finalizedH = this.roundFunc(this.shaVariant,this.keyWithOPad, this.$.utils.getH(this.shaVariant));
+			finalizedH = this.finalizeFunc(this.shaVariant, firstHash, this.outputBinLen, this.variantBlockSize, finalizedH);
+
+			return formatFunc(finalizedH);
+		},
+    sha1: function(msg,dig_enc) {
+
+    },
+    sha256: function(msg,dig_enc) {
+
+    },
+    sha224: function(msg,dig_enc) {
+
+    },
+    sha384: function(msg,dig_enc) {
+
+    },
+    sha512: function(msg,dig_enc) {
+
+    },
+    encode: function(s){
+  		for(var c, i = -1, l = (s = s.split("")).length, o = String.fromCharCode; ++i < l;
+  			s[i] = (c = s[i].charCodeAt(0)) >= 127 ? o(0xc0 | (c >>> 6)) + o(0x80 | (c & 0x3f)) : s[i]
+  		);
+  		return s.join("");
+  	}
+  });
+</script>
